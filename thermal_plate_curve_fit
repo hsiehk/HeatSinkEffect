@@ -1,0 +1,29 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.optimize import curve_fit
+
+h = 13.23
+
+def funcT(t,h):
+  SA = 0.04*0.04*2+0.04*0.01*4
+  Vol = 0.04*0.04*0.01
+  Pwr = float(6.86)
+  rho = 2700
+  Ts = 22.0
+  Cp = 901
+  return (1-np.exp(t*(-h*SA/(rho*Vol*Cp))))*(Pwr/(h*SA)) + Ts
+
+xdata = [0.0,0.5,1.0,1.5,2.0,2.5,3.0,3.5,4.0,4.5,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,19.0,20.0,22.0,24.0,26.0,28.0,30.0,35.0]
+ydata = [27.4,31.3,35.2,38.6,42.2,45.7,49.0,52.2,56.4,58.4,61.2,64.0,71.8,76.6,80.9,85.0,88.7,92.4,95.7,98.9,101.7,104.4,106.5,109.0,111.3,113.2,114.9,116.6,122.4,124.5,126.5,130.0]
+
+xdata = np.array(xdata)
+
+plt.scatter(xdata,ydata,label='data')
+
+popt,pcov = curve_fit(funcT,xdata,ydata)
+
+plt.plot(xdata, funcT(xdata, *popt), 'k-',  label="Fitted: h=%5.3f" %tuple(popt))
+plt.plot(xdata, funcT(xdata, h), 'r--',linewidth=4, label= "Theoretical: h=%5.3f" %h)
+plt.xlabel('t')
+plt.ylabel('T(t)')
+plt.legend(fontsize=16)
