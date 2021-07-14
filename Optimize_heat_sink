@@ -1,0 +1,259 @@
+import numpy as np
+import math
+import matplotlib.pyplot as plt
+from scipy.optimize import curve_fit as cf
+
+#initialize board and variables
+
+#define constant values
+#a_dist = 0
+#b_dist = 0.04
+#c_dist = 0.04
+#d_dist = 0.08
+delta = 0.02 #deltaX = deltaY
+h = 10 #W/m^2 oC
+h_board = 13.227 #W/m^2 oC
+Tinf = 22.4 # oC
+keff = 8.7 #W/mK
+L = 0.0069 #length of each pin
+t = 0.00157 #thickness
+
+#areas
+A_block = 0.04**2
+A_unfin = 0.0279**2 - 56*(0.0014**2)
+A_fin = (4*(0.0089-0.002)*0.0014+0.0014**2)*56
+A_nofin = 0.0279**2
+Ac = 0.0014**2
+perimeter = 2*0.0014
+
+#for the h of heat sink "h_sink"
+m = (h_board*perimeter/(keff*Ac))**(0.5)
+efficiency = math.tanh(m*L)/(m*L)
+eps = (A_unfin + efficiency*A_fin)/A_nofin #effectiveness
+
+T = np.zeros((11,11))
+Tnew = np.zeros((11,11))
+
+#boundary temperatures
+T[1][0]=29.4
+T[2][0]=31.2
+T[3][0]=32.8
+T[4][0]=33.5
+T[5][0]=33.6
+T[6][0]=33.9
+T[7][0]=33.7
+T[8][0]=32.7
+T[9][0]=30.7
+T[10][0]=29.0
+T[0][0]=28.3
+T[0][1]=30.0
+T[0][2]=32.4
+T[0][3]=34.2
+T[0][4]=34.3
+T[0][5]=35.1
+T[0][6]=35.0
+T[0][7]=34.0
+T[0][8]=31.9
+T[0][9]=29.5
+T[0][10]=28.1
+T[1][10]=30.7
+T[2][10]=33.0
+T[3][10]=34.1
+T[4][10]=32.9
+T[5][10]=30.6
+T[6][10]=28.6
+T[7][10]=26.2
+T[8][10]=25.3
+T[9][10]=24.4
+T[10][10]=24.1
+T[10][9]=24.9
+T[10][8]=25.8
+T[10][7]=26.9
+T[10][6]=28.8
+T[10][5]=31.0
+T[10][4]=33.3
+T[10][3]=34.1
+T[10][2]=33.1
+T[10][1]=30.9
+
+#initialize where the heaters are located: 
+#no heat sink: 1 is corner, 2 is edge, 3 is centre
+#heat sink block A: 4 corner, 5 edge, 6 centre
+#heat sink block B: 7 corner, 8 edge, 9 centre
+heater = np.zeros((11,11))
+
+#block 2
+heater[2][2] = 1
+heater[2][3] = 2
+heater[2][4] = 1
+heater[3][2] = 2
+heater[3][3] = 3
+heater[3][4] = 2
+heater[4][2] = 1
+heater[4][3] = 2
+heater[4][4] = 1
+resist2 = 77.4
+
+#block 3
+heater[2][6] = 4
+heater[2][7] = 5
+heater[2][8] = 4
+heater[3][6] = 5
+heater[3][7] = 6
+heater[3][8] = 5
+heater[4][6] = 4
+heater[4][7] = 5
+heater[4][8] = 4
+resist3 = 74.6
+
+#block 1
+heater[6][2] = 7
+heater[6][3] = 8
+heater[6][4] = 7
+heater[7][2] = 8
+heater[7][3] = 9
+heater[7][4] = 8
+heater[8][2] = 7
+heater[8][3] = 8
+heater[8][4] = 7
+resist1 = 74.0
+
+resist = (resist1+resist2+resist3)/3
+power = 24**2/resist
+
+#set tolerance for Jacobian to 1.0%
+tol = 0.01
+max_iter = 100;
+total_V = 1
+V = np.zeros((11,11))
+
+for i in range (11): #row numbers 0~10
+  for j in range (11): #column numbers 0~10
+    #print(T, i, j, sep = "   ")  #for debugging
+    print(Tnew, i, j, sep = "   ") #for debugging
+    
+      #block with heater block, no heat sink
+    if heater[i][j] == 1: #corner
+      Tnew[i][j] = (Tnew[i][j-1] + Tnew[i][j+1] + Tnew[i+1][j] + Tnew[i-1][j] + 3*h_board*delta**2*Tinf/(4*t*keff)+power/(16*t*keff))/(4+3*h_board*delta**2/(4*t*keff))
+      #V[i][j] = abs(T[i][j]-Tnew[i][j])
+      #T[i][j] = Tnew[i][j]
+    elif heater[i][j] == 2: #edge
+      Tnew[i][j] = (Tnew[i][j-1] + Tnew[i][j+1] + Tnew[i+1][j] + Tnew[i-1][j] + h_board*delta**2*Tinf/(2*t*keff) + power/(8*t*keff))/(4+h_board*delta**2/(2*t*keff))
+      #V[i][j] = abs(T[i][j]-Tnew[i][j])
+      #T[i][j] = Tnew[i][j]
+    elif heater[i][j] == 3: #centre
+      Tnew[i][j] = (Tnew[i][j-1] + Tnew[i][j+1] + Tnew[i+1][j] + Tnew[i-1][j] + power/(4*t*keff))/4
+      #V[i][j] = abs(T[i][j]-Tnew[i][j])
+      #T[i][j] = Tnew[i][j]
+    else:
+      #blocks with heater block AND heat sink
+      if heater[i][j] == 4: #corner
+        h_sink = (1-0.25)*h_board+eps*0.25*h_board
+        Tnew[i][j] = (Tnew[i][j-1] + Tnew[i][j+1] + Tnew[i+1][j] + Tnew[i-1][j] + 3*h_sink*delta**2*Tinf/(4*t*keff)+power/(16*t*keff))/(4+3*h_sink*delta**2/(4*t*keff))
+        #V[i][j] = abs(T[i][j]-Tnew[i][j])
+        #T[i][j] = Tnew[i][j]
+          
+      elif heater[i][j] == 5: #edge
+        h_sink = (1-0.5)*h_board+eps*0.5*h_board
+        Tnew[i][j] = (Tnew[i][j-1] + Tnew[i][j+1] + Tnew[i+1][j] + Tnew[i-1][j] + h_sink*delta**2*Tinf/(2*t*keff) + power/(8*t*keff))/(4+h_sink*delta**2/(2*t*keff))
+        #V[i][j] = abs(T[i][j]-Tnew[i][j])
+        #T[i][j] = Tnew[i][j]
+        
+      elif heater[i][j] == 6: #centre
+        h_sink = eps*h_board
+        Tnew[i][j] = (Tnew[i][j-1] + Tnew[i][j+1] + Tnew[i+1][j] + Tnew[i-1][j] + power/(4*t*keff))/4
+        #V[i][j] = abs(T[i][j]-Tnew[i][j])
+        #T[i][j] = Tnew[i][j]
+          
+      elif heater[i][j] == 7: #corner
+        h_sink = (1-0.25)*h_board+eps*0.25*h_board
+        Tnew[i][j] = (Tnew[i][j-1] + Tnew[i][j+1] + Tnew[i+1][j] + Tnew[i-1][j] + 3*h_sink*delta**2*Tinf/(4*t*keff)+power/(16*t*keff))/(4+3*h_sink*delta**2/(4*t*keff))
+        #V[i][j] = abs(T[i][j]-Tnew[i][j])
+        #T[i][j] = Tnew[i][j]
+          
+      elif heater[i][j] == 8: #edge
+        h_sink = (1-0.5)*h_board+eps*0.5*h_board
+        Tnew[i][j] = (Tnew[i][j-1] + Tnew[i][j+1] + Tnew[i+1][j] + Tnew[i-1][j] + h_sink*delta**2*Tinf/(2*t*keff) + power/(8*t*keff))/(4+h_sink*delta**2/(2*t*keff))
+        #V[i][j] = abs(T[i][j]-Tnew[i][j])
+        #T[i][j] = Tnew[i][j]
+          
+      elif heater[i][j] == 9: #centre
+        h_sink = eps*h_board
+        Tnew[i][j] = (Tnew[i][j-1] + Tnew[i][j+1] + Tnew[i+1][j] + Tnew[i-1][j] + power/(4*t*keff))/4
+        #V[i][j] = abs(T[i][j]-Tnew[i][j])
+        #T[i][j] = Tnew[i][j]
+          
+      else:
+        #no heater block or heat sink
+        if i==0: #first row
+          if j == 0: #corner left case
+            Tnew[i][j] = ((2*h*t*delta+h_board*delta**2)*Tinf + t*keff*(T[i+1][j]+T[i][j+1]))/(2*h*t*delta+2*t*keff+h*delta**2)
+            #V[i][j] = abs(T[i][j]-Tnew[i][j])
+            #T[i][j] = Tnew[i][j]
+          elif j == 10: #corner right case
+            Tnew[i][j] = ((2*h*t*delta+h_board*delta**2)*Tinf + t*keff*(T[i+1][j]+T[i][j-1]))/(2*h*t*delta+2*t*keff+h*delta**2)
+            #V[i][j] = abs(T[i][j]-Tnew[i][j])
+            #T[i][j] = Tnew[i][j]
+          elif (j>0 and j<10): #edge case
+            Tnew[i][j]= (Tinf*(h*t*delta+h*delta**2)+t*keff*(T[i][j-1]+T[i][j+1]+T[i+1][j]))/(h*t*delta+3*keff*t+h*delta**2)
+            #V[i][j] = abs(T[i][j]-Tnew[i][j])
+            #T[i][j] = Tnew[i][j]
+          else: #for debugging
+            print("ERROR ", i, j, sep == "   ")
+              
+        elif i == 10: #last row
+          if j == 0: #corner left case
+            Tnew[i][j] = ((2*h*t*delta+h_board*delta**2)*Tinf + t*keff*(T[i-1][j]+T[i][j+1]))/(2*h*t*delta+2*t*keff+h*delta**2)
+            #V[i][j] = abs(T[i][j]-Tnew[i][j])
+            #T[i][j] = Tnew[i][j]
+          elif j == 10: #corner right case
+            Tnew[i][j] = ((2*h*t*delta+h_board*delta**2)*Tinf + t*keff*(T[i-1][j]+T[i][j-1]))/(2*h*t*delta+2*t*keff+h*delta**2)
+            #V[i][j] = abs(T[i][j]-Tnew[i][j])
+            #T[i][j] = Tnew[i][j]
+          elif (j>0 and j<10): #edge case
+            Tnew[i][j]= (Tinf*(h*t*delta+h*delta**2)+t*keff*(T[i][j-1]+T[i][j+1]+T[i-1][j]))/(h*t*delta+3*keff*t+h*delta**2)
+            #V[i][j] = abs(T[i][j]-Tnew[i][j])
+            #T[i][j] = Tnew[i][j]
+          else: #for debugging
+            print("ERROR ", i, j, sep == "   ")
+            
+          #edge boundary (sides)
+        elif j == 0:
+          Tnew[i][j]=(Tinf*(h*t*delta+h*delta**2)+t*keff*(T[i-1][j]+T[i][j+1]+T[i+1][j]))/(h*t*delta+3*keff*t+h*delta**2)
+          #V[i][j] = abs(T[i][j]-Tnew[i][j])
+          #T[i][j] = Tnew[i][j]
+        elif j == 10:
+          Tnew[i][j]= (Tinf*(h*t*delta+h*delta**2)+t*keff*(T[i][j-1]+T[i-1][j]+T[i+1][j]))/(h*t*delta+3*keff*t+h*delta**2)
+          #V[i][j] = abs(T[i][j]-Tnew[i][j])
+          #T[i][j] = Tnew[i][j]
+          
+          #internal node cases
+        elif (i>0 and i<10): 
+          if (j>0 and j<10): 
+            Tnew[i][j] = (Tnew[i][j-1] + Tnew[i][j+1] + Tnew[i+1][j] + Tnew[i-1][j] + h_board*delta**2*Tinf/(t*keff))/(4+h_board*delta**2/(t*keff))
+            #V[i][j] = abs(T[i][j]-Tnew[i][j])
+            #T[i][j] = Tnew[i][j]
+          else: #for debugging
+            print("ERROR ", i, j, sep == "   ")
+              
+        else: #for debugging
+          print("ERROR ", i, j, sep == "   ")
+
+##debugging            
+#print (T)
+#print("\n")
+#print (Tnew)
+#print("\n")
+#print(deltaV)
+
+fig = plt.figure(figsize = (10,10))
+im = plt.imshow(Tnew, interpolation='bilinear', origin='lower',
+                cmap='jet', extent=(0, 11, 0, 11))
+levels = [0.1,0.2, 0.4, 0.6, 0.8, 1.]
+CS = plt.contour(Tnew, levels,
+                 origin='lower',
+                 linewidths=2, colors=('black'),
+                 extent=(0, 11, 0, 11))
+fig.colorbar(im, fraction=0.046, pad=0.04) # add colorbar (fraction and pad numbers keep the colorbar scaled to the plot (always use these magic numbers!))
+plt.title("Contour Plot for Best Heat Sink Orientation",fontsize=25) # add the title
+fig.show() # show the figure
